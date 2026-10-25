@@ -16,30 +16,36 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -52,10 +58,110 @@ fun parseComposeColor(hex: String, fallback: Color = Color(0xFF075E54)): Color {
     }
 }
 
+fun buildComposeShape(shapeStyle: String): Shape = GenericShape { size, _ ->
+    val w = size.width
+    val h = size.height
+    val cx = w / 2f
+    val cy = h / 2f
+    val r = min(w, h) * 0.43f
+
+    when (shapeStyle) {
+        "STARBURST" -> {
+            val points = 16
+            val innerR = r * 0.85f
+            for (i in 0 until points * 2) {
+                val rad = if (i % 2 == 0) r else innerR
+                val angle = Math.toRadians((i * 180.0 / points) - 90.0)
+                val x = cx + (rad * cos(angle)).toFloat()
+                val y = cy + (rad * sin(angle)).toFloat()
+                if (i == 0) moveTo(x, y) else lineTo(x, y)
+            }
+            close()
+        }
+        "HEXAGON" -> {
+            for (i in 0 until 6) {
+                val angle = Math.toRadians((60.0 * i) - 30.0)
+                val x = cx + (r * cos(angle)).toFloat()
+                val y = cy + (r * sin(angle)).toFloat()
+                if (i == 0) moveTo(x, y) else lineTo(x, y)
+            }
+            close()
+        }
+        "SHIELD" -> {
+            moveTo(cx, cy - r)
+            lineTo(cx + r * 0.9f, cy - r * 0.65f)
+            lineTo(cx + r * 0.8f, cy + r * 0.25f)
+            quadraticTo(cx + r * 0.4f, cy + r * 0.85f, cx, cy + r)
+            quadraticTo(cx - r * 0.4f, cy + r * 0.85f, cx - r * 0.8f, cy + r * 0.25f)
+            lineTo(cx - r * 0.9f, cy - r * 0.65f)
+            close()
+        }
+        "BANNER" -> {
+            addRoundRect(
+                androidx.compose.ui.geometry.RoundRect(
+                    left = cx - r * 0.98f,
+                    top = cy - r * 0.80f,
+                    right = cx + r * 0.98f,
+                    bottom = cy + r * 0.80f,
+                    cornerRadius = CornerRadius(48f, 48f)
+                )
+            )
+        }
+        else -> {
+            addOval(
+                androidx.compose.ui.geometry.Rect(
+                    left = cx - r,
+                    top = cy - r,
+                    right = cx + r,
+                    bottom = cy + r
+                )
+            )
+        }
+    }
+}
+
+fun buildComposeColorFilter(filterMode: String): ColorFilter? {
+    return when (filterMode) {
+        "WARM_GOLD" -> {
+            ColorFilter.colorMatrix(
+                ColorMatrix(
+                    floatArrayOf(
+                        1.18f, 0f, 0f, 0f, 15f,
+                        0f, 1.08f, 0f, 0f, 8f,
+                        0f, 0f, 0.85f, 0f, 0f,
+                        0f, 0f, 0f, 1f, 0f
+                    )
+                )
+            )
+        }
+        "VIVID" -> {
+            val cm = ColorMatrix().apply { setToSaturation(1.45f) }
+            ColorFilter.colorMatrix(cm)
+        }
+        "MONO" -> {
+            val cm = ColorMatrix().apply { setToSaturation(0f) }
+            ColorFilter.colorMatrix(cm)
+        }
+        "EMERALD_TINT" -> {
+            ColorFilter.colorMatrix(
+                ColorMatrix(
+                    floatArrayOf(
+                        0.85f, 0f, 0f, 0f, 0f,
+                        0f, 1.20f, 0f, 0f, 14f,
+                        0f, 0f, 1.05f, 0f, 8f,
+                        0f, 0f, 0f, 1f, 0f
+                    )
+                )
+            )
+        }
+        else -> null
+    }
+}
+
 /**
  * Custom Compose Canvas that renders an authentic WhatsApp Sticker Badge with a white die-cut
- * border, geometric Arewa shape (Starburst, Shield, Hexagon, Circle, Banner), central emoji,
- * and strict single-line top and bottom captions.
+ * border, geometric Arewa shape (Starburst, Shield, Hexagon, Circle, Banner), optional user photo
+ * from gallery/camera with live zoom/rotation/filter, central emoji, and single-line captions.
  */
 @Composable
 fun StickerBadgeCanvas(
@@ -68,10 +174,17 @@ fun StickerBadgeCanvas(
     modifier: Modifier = Modifier,
     emojiFontSizeSp: Float = 36f,
     showCaptions: Boolean = true,
+    customImageUri: String? = null,
+    imageScale: Float = 1.0f,
+    imageRotation: Float = 0f,
+    borderThicknessDp: Float = 7f,
+    colorFilterMode: String = "NORMAL",
     onClick: (() -> Unit)? = null
 ) {
     val bgColor = parseComposeColor(bgColorHex, Color(0xFF075E54))
     val borderColor = parseComposeColor(borderColorHex, Color(0xFFFFD54F))
+    val clipShape = remember(shapeStyle) { buildComposeShape(shapeStyle) }
+    val composeColorFilter = remember(colorFilterMode) { buildComposeColorFilter(colorFilterMode) }
 
     Box(
         modifier = modifier
@@ -87,6 +200,7 @@ fun StickerBadgeCanvas(
             .padding(6.dp),
         contentAlignment = Alignment.Center
     ) {
+        // 1. Background + White Die-Cut Stroke
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
@@ -155,7 +269,7 @@ fun StickerBadgeCanvas(
                 path = path,
                 color = Color.White,
                 style = Stroke(
-                    width = 7.dp.toPx(),
+                    width = borderThicknessDp.dp.toPx(),
                     cap = StrokeCap.Round,
                     join = StrokeJoin.Round
                 )
@@ -170,31 +284,120 @@ fun StickerBadgeCanvas(
                     end = Offset(w, h)
                 )
             )
+        }
 
-            // Inner accent border
+        // 2. Optional Custom Photo Layer Clipped to Badge Shape
+        if (!customImageUri.isNullOrBlank()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(clipShape),
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = customImageUri,
+                    contentDescription = "Hoton Lamba",
+                    contentScale = ContentScale.Crop,
+                    colorFilter = composeColorFilter,
+                    modifier = Modifier
+                        .fillMaxSize(0.86f)
+                        .graphicsLayer(
+                            scaleX = imageScale,
+                            scaleY = imageScale,
+                            rotationZ = imageRotation
+                        )
+                )
+            }
+        }
+
+        // 3. Inner Accent Border Overlay
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            val cx = w / 2f
+            val cy = h / 2f
+            val r = min(w, h) * 0.43f
+
+            val path = Path().apply {
+                when (shapeStyle) {
+                    "STARBURST" -> {
+                        val points = 16
+                        val innerR = r * 0.85f
+                        for (i in 0 until points * 2) {
+                            val rad = if (i % 2 == 0) r else innerR
+                            val angle = Math.toRadians((i * 180.0 / points) - 90.0)
+                            val x = cx + (rad * cos(angle)).toFloat()
+                            val y = cy + (rad * sin(angle)).toFloat()
+                            if (i == 0) moveTo(x, y) else lineTo(x, y)
+                        }
+                        close()
+                    }
+                    "HEXAGON" -> {
+                        for (i in 0 until 6) {
+                            val angle = Math.toRadians((60.0 * i) - 30.0)
+                            val x = cx + (r * cos(angle)).toFloat()
+                            val y = cy + (r * sin(angle)).toFloat()
+                            if (i == 0) moveTo(x, y) else lineTo(x, y)
+                        }
+                        close()
+                    }
+                    "SHIELD" -> {
+                        moveTo(cx, cy - r)
+                        lineTo(cx + r * 0.9f, cy - r * 0.65f)
+                        lineTo(cx + r * 0.8f, cy + r * 0.25f)
+                        quadraticTo(cx + r * 0.4f, cy + r * 0.85f, cx, cy + r)
+                        quadraticTo(cx - r * 0.4f, cy + r * 0.85f, cx - r * 0.8f, cy + r * 0.25f)
+                        lineTo(cx - r * 0.9f, cy - r * 0.65f)
+                        close()
+                    }
+                    "BANNER" -> {
+                        addRoundRect(
+                            androidx.compose.ui.geometry.RoundRect(
+                                left = cx - r * 0.98f,
+                                top = cy - r * 0.80f,
+                                right = cx + r * 0.98f,
+                                bottom = cy + r * 0.80f,
+                                cornerRadius = CornerRadius(24.dp.toPx(), 24.dp.toPx())
+                            )
+                        )
+                    }
+                    else -> {
+                        addOval(
+                            androidx.compose.ui.geometry.Rect(
+                                left = cx - r,
+                                top = cy - r,
+                                right = cx + r,
+                                bottom = cy + r
+                            )
+                        )
+                    }
+                }
+            }
+
             drawPath(
                 path = path,
                 color = borderColor,
                 style = Stroke(
-                    width = 2.5.dp.toPx(),
+                    width = (borderThicknessDp * 0.36f).coerceAtLeast(2f).dp.toPx(),
                     cap = StrokeCap.Round,
                     join = StrokeJoin.Round
                 )
             )
         }
 
+        // 4. Text & Emoji Layer
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = if (!customImageUri.isNullOrBlank()) Arrangement.SpaceBetween else Arrangement.Center
         ) {
             if (showCaptions && topText.isNotBlank()) {
                 Surface(
                     color = Color(0xCC0B141A),
                     shape = RoundedCornerShape(50),
-                    modifier = Modifier.padding(bottom = 2.dp)
+                    modifier = Modifier.padding(bottom = 2.dp, top = if (!customImageUri.isNullOrBlank()) 8.dp else 0.dp)
                 ) {
                     Text(
                         text = topText.uppercase(),
@@ -208,21 +411,29 @@ fun StickerBadgeCanvas(
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
                     )
                 }
+            } else if (!customImageUri.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
             }
 
-            Text(
-                text = centerEmoji,
-                fontSize = emojiFontSizeSp.sp,
-                maxLines = 1,
-                softWrap = false,
-                textAlign = TextAlign.Center
-            )
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = if (!customImageUri.isNullOrBlank()) Alignment.CenterEnd else Alignment.Center
+            ) {
+                Text(
+                    text = centerEmoji,
+                    fontSize = (if (!customImageUri.isNullOrBlank()) emojiFontSizeSp * 0.62f else emojiFontSizeSp).sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    textAlign = TextAlign.Center,
+                    modifier = if (!customImageUri.isNullOrBlank()) Modifier.padding(end = 10.dp) else Modifier
+                )
+            }
 
             if (showCaptions && bottomText.isNotBlank()) {
                 Surface(
                     color = borderColor,
                     shape = RoundedCornerShape(50),
-                    modifier = Modifier.padding(top = 2.dp)
+                    modifier = Modifier.padding(top = 2.dp, bottom = if (!customImageUri.isNullOrBlank()) 8.dp else 0.dp)
                 ) {
                     Text(
                         text = bottomText,
@@ -236,6 +447,8 @@ fun StickerBadgeCanvas(
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
                     )
                 }
+            } else if (!customImageUri.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
             }
         }
     }
@@ -270,7 +483,6 @@ fun ArewaHeroBanner(
                     )
                 )
         ) {
-            // Subtle decorative geometric pattern in background
             Canvas(modifier = Modifier.matchParentSize()) {
                 val step = 64.dp.toPx()
                 val strokeColor = Color(0x18FFD54F)
@@ -332,7 +544,7 @@ fun ArewaHeroBanner(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "Zabi fakitoci masu ban sha'awa ko ka ƙirƙiri naka cikin sakan 5!",
+                        text = "Zabi hoto daga wayarka ko ka ƙirƙiri lamba a Sticker Editor!",
                         color = Color(0xFFE0F2F1),
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
@@ -354,7 +566,7 @@ fun ArewaHeroBanner(
                                 .testTag("hero_create_sticker_button")
                         ) {
                             Text(
-                                text = "🎨 Ƙirƙiri Lamba",
+                                text = "📸 Sticker Editor",
                                 color = Color(0xFF00221C),
                                 style = MaterialTheme.typography.labelLarge,
                                 maxLines = 1,

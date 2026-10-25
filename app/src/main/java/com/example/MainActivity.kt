@@ -179,6 +179,12 @@ fun ArewaStickersMainApp(
     val studioBgHex by viewModel.studioBgHex.collectAsStateWithLifecycle()
     val studioBorderHex by viewModel.studioBorderHex.collectAsStateWithLifecycle()
 
+    val selectedImageUri by viewModel.selectedImageUri.collectAsStateWithLifecycle()
+    val imageScale by viewModel.imageScale.collectAsStateWithLifecycle()
+    val imageRotation by viewModel.imageRotation.collectAsStateWithLifecycle()
+    val borderThickness by viewModel.borderThickness.collectAsStateWithLifecycle()
+    val colorFilterMode by viewModel.colorFilterMode.collectAsStateWithLifecycle()
+
     val userPacksState by viewModel.userPacksState.collectAsStateWithLifecycle()
     val customStickersState by viewModel.customStickersState.collectAsStateWithLifecycle()
 
@@ -407,12 +413,23 @@ fun ArewaStickersMainApp(
                                     shapeStyle = studioShape,
                                     bgColorHex = studioBgHex,
                                     borderColorHex = studioBorderHex,
+                                    selectedImageUri = selectedImageUri,
+                                    imageScale = imageScale,
+                                    imageRotation = imageRotation,
+                                    borderThickness = borderThickness,
+                                    colorFilterMode = colorFilterMode,
                                     isExpandedScreen = isExpandedScreen,
                                     onTopTextChange = viewModel::updateStudioTopText,
                                     onBottomTextChange = viewModel::updateStudioBottomText,
                                     onEmojiChange = viewModel::updateStudioEmoji,
                                     onShapeChange = viewModel::updateStudioShape,
                                     onColorChange = viewModel::updateStudioColors,
+                                    onImageSelected = viewModel::updateSelectedImageUri,
+                                    onImageScaleChange = viewModel::updateImageScale,
+                                    onImageRotationChange = viewModel::updateImageRotation,
+                                    onBorderThicknessChange = viewModel::updateBorderThickness,
+                                    onColorFilterModeChange = viewModel::updateColorFilterMode,
+                                    onResetEditorTransforms = viewModel::resetStickerEditorTransform,
                                     onSaveToCloud = viewModel::saveStudioStickerToCloud
                                 )
                             }

@@ -62,6 +62,22 @@ class StickerViewModel(
     private val _studioBorderHex = MutableStateFlow("#FFD54F")
     val studioBorderHex: StateFlow<String> = _studioBorderHex.asStateFlow()
 
+    // Photo & Sticker Editor State
+    private val _selectedImageUri = MutableStateFlow<String?>(null)
+    val selectedImageUri: StateFlow<String?> = _selectedImageUri.asStateFlow()
+
+    private val _imageScale = MutableStateFlow(1.0f)
+    val imageScale: StateFlow<Float> = _imageScale.asStateFlow()
+
+    private val _imageRotation = MutableStateFlow(0f)
+    val imageRotation: StateFlow<Float> = _imageRotation.asStateFlow()
+
+    private val _borderThickness = MutableStateFlow(7f)
+    val borderThickness: StateFlow<Float> = _borderThickness.asStateFlow()
+
+    private val _colorFilterMode = MutableStateFlow("NORMAL")
+    val colorFilterMode: StateFlow<String> = _colorFilterMode.asStateFlow()
+
     // Cloud Firestore Streams with Two-Tier Error Handling
     val userPacksState: StateFlow<UiState<List<CustomStickerPack>>> = repository.observeUserPacks(currentUserId)
         .map<List<CustomStickerPack>, UiState<List<CustomStickerPack>>> { list ->
@@ -124,6 +140,36 @@ class StickerViewModel(
     fun updateStudioColors(bgHex: String, borderHex: String) {
         _studioBgHex.value = bgHex
         _studioBorderHex.value = borderHex
+    }
+
+    fun updateSelectedImageUri(uri: String?) {
+        _selectedImageUri.value = uri
+        if (uri != null) {
+            _statusBannerMessage.value = "📸 An dora hoto a Sticker Editor!"
+        }
+    }
+
+    fun updateImageScale(scale: Float) {
+        _imageScale.value = scale.coerceIn(0.5f, 2.5f)
+    }
+
+    fun updateImageRotation(rotation: Float) {
+        _imageRotation.value = rotation.coerceIn(-180f, 180f)
+    }
+
+    fun updateBorderThickness(thickness: Float) {
+        _borderThickness.value = thickness.coerceIn(2f, 16f)
+    }
+
+    fun updateColorFilterMode(mode: String) {
+        _colorFilterMode.value = mode
+    }
+
+    fun resetStickerEditorTransform() {
+        _imageScale.value = 1.0f
+        _imageRotation.value = 0f
+        _borderThickness.value = 7f
+        _colorFilterMode.value = "NORMAL"
     }
 
     fun loadTemplateIntoStudio(

@@ -3,17 +3,23 @@ package com.example.util
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.net.Uri
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.cos
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
@@ -27,17 +33,72 @@ object StickerExportHelper {
         }
     }
 
+    private fun decodeCustomBitmap(context: Context, uriString: String?): Bitmap? {
+        if (uriString.isNullOrBlank()) return null
+        return try {
+            val uri = Uri.parse(uriString)
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream)
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun buildColorFilter(filterMode: String): ColorMatrixColorFilter? {
+        return when (filterMode) {
+            "WARM_GOLD" -> {
+                val cm = ColorMatrix(
+                    floatArrayOf(
+                        1.18f, 0f, 0f, 0f, 15f,
+                        0f, 1.08f, 0f, 0f, 8f,
+                        0f, 0f, 0.85f, 0f, 0f,
+                        0f, 0f, 0f, 1f, 0f
+                    )
+                )
+                ColorMatrixColorFilter(cm)
+            }
+            "VIVID" -> {
+                val cm = ColorMatrix().apply { setSaturation(1.45f) }
+                ColorMatrixColorFilter(cm)
+            }
+            "MONO" -> {
+                val cm = ColorMatrix().apply { setSaturation(0f) }
+                ColorMatrixColorFilter(cm)
+            }
+            "EMERALD_TINT" -> {
+                val cm = ColorMatrix(
+                    floatArrayOf(
+                        0.85f, 0f, 0f, 0f, 0f,
+                        0f, 1.20f, 0f, 0f, 14f,
+                        0f, 0f, 1.05f, 0f, 8f,
+                        0f, 0f, 0f, 1f, 0f
+                    )
+                )
+                ColorMatrixColorFilter(cm)
+            }
+            else -> null
+        }
+    }
+
     /**
      * Renders a crisp 512x512 WhatsApp-compliant sticker bitmap with transparent background,
-     * custom badge geometry, white sticker die-cut outline, emoji centerpiece, and Hausa caption.
+     * custom badge geometry, optional cropped/scaled/rotated user photo, white die-cut outline,
+     * emoji centerpiece, and Hausa caption.
      */
     fun renderStickerBitmap(
+        context: Context? = null,
         topText: String,
         bottomText: String,
         centerEmoji: String,
         shapeStyle: String,
         bgColorHex: String,
-        borderColorHex: String
+        borderColorHex: String,
+        customImageUri: String? = null,
+        imageScale: Float = 1.0f,
+        imageRotation: Float = 0f,
+        borderThicknessDp: Float = 7f,
+        colorFilterMode: String = "NORMAL"
     ): Bitmap {
         val size = 512
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -56,7 +117,7 @@ object StickerExportHelper {
         val dieCutPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
             style = Paint.Style.STROKE
-            strokeWidth = 28f
+            strokeWidth = (borderThicknessDp * 4f).coerceIn(10f, 44f)
             strokeJoin = Paint.Join.ROUND
             strokeCap = Paint.Cap.ROUND
             setShadowLayer(12f, 0f, 6f, Color.argb(90, 0, 0, 0))
@@ -70,23 +131,58 @@ object StickerExportHelper {
         }
         canvas.drawPath(badgePath, fillPaint)
 
-        // 3. Inner Decorative Accent Border
+        // 3. Optional Custom Photo Clipped Inside Badge Shape with Scale, Rotation & Filter
+        val userPhoto = if (context != null && !customImageUri.isNullOrBlank()) {
+            decodeCustomBitmap(context, customImageUri)
+        } else {
+            null
+        }
+
+        if (userPhoto != null) {
+            canvas.save()
+            canvas.clipPath(badgePath)
+
+            val photoPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+                colorFilter = buildColorFilter(colorFilterMode)
+            }
+
+            val baseScale = max(
+                (radius * 2f) / userPhoto.width.toFloat(),
+                (radius * 2f) / userPhoto.height.toFloat()
+            ) * imageScale.coerceIn(0.5f, 2.5f)
+
+            val matrix = Matrix().apply {
+                postTranslate(-userPhoto.width / 2f, -userPhoto.height / 2f)
+                postScale(baseScale, baseScale)
+                postRotate(imageRotation)
+                postTranslate(cx, cy)
+            }
+            canvas.drawBitmap(userPhoto, matrix, photoPaint)
+            canvas.restore()
+        }
+
+        // 4. Inner Decorative Accent Border
         val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = borderColor
             style = Paint.Style.STROKE
-            strokeWidth = 10f
+            strokeWidth = (borderThicknessDp * 1.5f).coerceIn(4f, 22f)
             strokeJoin = Paint.Join.ROUND
         }
         canvas.drawPath(badgePath, borderPaint)
 
-        // 4. Center Emoji
+        // 5. Center or Corner Emoji Stamp
         val emojiPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             textAlign = Paint.Align.CENTER
-            textSize = 136f
+            textSize = if (userPhoto != null) 78f else 136f
         }
-        canvas.drawText(centerEmoji, cx, cy + 36f, emojiPaint)
+        if (userPhoto != null) {
+            // Draw emoji as a lively corner stamp when a custom photo is active
+            canvas.drawText(centerEmoji, cx + radius * 0.56f, cy + radius * 0.28f, emojiPaint)
+        } else {
+            canvas.drawText(centerEmoji, cx, cy + 36f, emojiPaint)
+        }
 
-        // 5. Top Ribbon / Text with strong outline
+        // 6. Top Ribbon / Text with strong outline
         if (topText.isNotBlank()) {
             drawOutlinedStickerText(
                 canvas = canvas,
@@ -99,7 +195,7 @@ object StickerExportHelper {
             )
         }
 
-        // 6. Bottom Pill / Subtitle Text
+        // 7. Bottom Pill / Subtitle Text
         if (bottomText.isNotBlank()) {
             val pillRect = RectF(cx - radius * 0.85f, cy + radius * 0.45f, cx + radius * 0.85f, cy + radius * 0.78f)
             val pillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -216,16 +312,27 @@ object StickerExportHelper {
         centerEmoji: String,
         shapeStyle: String,
         bgColorHex: String,
-        borderColorHex: String
+        borderColorHex: String,
+        customImageUri: String? = null,
+        imageScale: Float = 1.0f,
+        imageRotation: Float = 0f,
+        borderThicknessDp: Float = 7f,
+        colorFilterMode: String = "NORMAL"
     ) {
         try {
             val bitmap = renderStickerBitmap(
+                context = context,
                 topText = topText,
                 bottomText = bottomText,
                 centerEmoji = centerEmoji,
                 shapeStyle = shapeStyle,
                 bgColorHex = bgColorHex,
-                borderColorHex = borderColorHex
+                borderColorHex = borderColorHex,
+                customImageUri = customImageUri,
+                imageScale = imageScale,
+                imageRotation = imageRotation,
+                borderThicknessDp = borderThicknessDp,
+                colorFilterMode = colorFilterMode
             )
             val cacheDir = File(context.cacheDir, "stickers").apply { mkdirs() }
             val file = File(cacheDir, "arewa_sticker_${System.currentTimeMillis()}.png")

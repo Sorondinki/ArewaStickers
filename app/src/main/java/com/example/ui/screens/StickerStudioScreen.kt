@@ -23,10 +23,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -36,6 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,8 +56,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.CuratedStickerCatalog
 import com.example.ui.components.StickerBadgeCanvas
+import com.example.ui.components.StickerImagePickerComponent
 import com.example.ui.components.parseComposeColor
 import com.example.util.StickerExportHelper
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 @Composable
@@ -63,12 +70,23 @@ fun StickerStudioScreen(
     shapeStyle: String,
     bgColorHex: String,
     borderColorHex: String,
+    selectedImageUri: String?,
+    imageScale: Float,
+    imageRotation: Float,
+    borderThickness: Float,
+    colorFilterMode: String,
     isExpandedScreen: Boolean,
     onTopTextChange: (String) -> Unit,
     onBottomTextChange: (String) -> Unit,
     onEmojiChange: (String) -> Unit,
     onShapeChange: (String) -> Unit,
     onColorChange: (String, String) -> Unit,
+    onImageSelected: (String?) -> Unit,
+    onImageScaleChange: (Float) -> Unit,
+    onImageRotationChange: (Float) -> Unit,
+    onBorderThicknessChange: (Float) -> Unit,
+    onColorFilterModeChange: (String) -> Unit,
+    onResetEditorTransforms: () -> Unit,
     onSaveToCloud: () -> Unit
 ) {
     val context = LocalContext.current
@@ -94,7 +112,7 @@ fun StickerStudioScreen(
     }
 
     if (isExpandedScreen) {
-        // Side-by-Side Live Preview + Controls on Tablets/Foldables
+        // Side-by-Side Live Preview + Full Sticker Editor Controls on Tablets/Foldables
         Row(
             modifier = Modifier
                 .fillMaxSize()
@@ -114,6 +132,11 @@ fun StickerStudioScreen(
                     shapeStyle = shapeStyle,
                     bgColorHex = bgColorHex,
                     borderColorHex = borderColorHex,
+                    selectedImageUri = selectedImageUri,
+                    imageScale = imageScale,
+                    imageRotation = imageRotation,
+                    borderThickness = borderThickness,
+                    colorFilterMode = colorFilterMode,
                     onRandomize = triggerRandomize,
                     onSaveToCloud = onSaveToCloud,
                     onShareWhatsApp = {
@@ -124,7 +147,12 @@ fun StickerStudioScreen(
                             centerEmoji = centerEmoji,
                             shapeStyle = shapeStyle,
                             bgColorHex = bgColorHex,
-                            borderColorHex = borderColorHex
+                            borderColorHex = borderColorHex,
+                            customImageUri = selectedImageUri,
+                            imageScale = imageScale,
+                            imageRotation = imageRotation,
+                            borderThicknessDp = borderThickness,
+                            colorFilterMode = colorFilterMode
                         )
                     }
                 )
@@ -134,8 +162,26 @@ fun StickerStudioScreen(
                 modifier = Modifier
                     .weight(0.55f)
                     .fillMaxHeight()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                StickerImagePickerComponent(
+                    selectedImageUri = selectedImageUri,
+                    onImageSelected = onImageSelected
+                )
+
+                StickerEditorTransformCard(
+                    imageScale = imageScale,
+                    imageRotation = imageRotation,
+                    borderThickness = borderThickness,
+                    colorFilterMode = colorFilterMode,
+                    onImageScaleChange = onImageScaleChange,
+                    onImageRotationChange = onImageRotationChange,
+                    onBorderThicknessChange = onBorderThicknessChange,
+                    onColorFilterModeChange = onColorFilterModeChange,
+                    onReset = onResetEditorTransforms
+                )
+
                 StudioControlsPanel(
                     topText = topText,
                     bottomText = bottomText,
@@ -166,6 +212,11 @@ fun StickerStudioScreen(
                 shapeStyle = shapeStyle,
                 bgColorHex = bgColorHex,
                 borderColorHex = borderColorHex,
+                selectedImageUri = selectedImageUri,
+                imageScale = imageScale,
+                imageRotation = imageRotation,
+                borderThickness = borderThickness,
+                colorFilterMode = colorFilterMode,
                 onRandomize = triggerRandomize,
                 onSaveToCloud = onSaveToCloud,
                 onShareWhatsApp = {
@@ -176,9 +227,31 @@ fun StickerStudioScreen(
                         centerEmoji = centerEmoji,
                         shapeStyle = shapeStyle,
                         bgColorHex = bgColorHex,
-                        borderColorHex = borderColorHex
+                        borderColorHex = borderColorHex,
+                        customImageUri = selectedImageUri,
+                        imageScale = imageScale,
+                        imageRotation = imageRotation,
+                        borderThicknessDp = borderThickness,
+                        colorFilterMode = colorFilterMode
                     )
                 }
+            )
+
+            StickerImagePickerComponent(
+                selectedImageUri = selectedImageUri,
+                onImageSelected = onImageSelected
+            )
+
+            StickerEditorTransformCard(
+                imageScale = imageScale,
+                imageRotation = imageRotation,
+                borderThickness = borderThickness,
+                colorFilterMode = colorFilterMode,
+                onImageScaleChange = onImageScaleChange,
+                onImageRotationChange = onImageRotationChange,
+                onBorderThicknessChange = onBorderThicknessChange,
+                onColorFilterModeChange = onColorFilterModeChange,
+                onReset = onResetEditorTransforms
             )
 
             StudioControlsPanel(
@@ -206,6 +279,11 @@ private fun StudioPreviewCard(
     shapeStyle: String,
     bgColorHex: String,
     borderColorHex: String,
+    selectedImageUri: String?,
+    imageScale: Float,
+    imageRotation: Float,
+    borderThickness: Float,
+    colorFilterMode: String,
     onRandomize: () -> Unit,
     onSaveToCloud: () -> Unit,
     onShareWhatsApp: () -> Unit
@@ -234,7 +312,7 @@ private fun StudioPreviewCard(
                     shape = RoundedCornerShape(50)
                 ) {
                     Text(
-                        text = "🎨 512x512 WHATSAPP STICKER CANVAS",
+                        text = "🎨 STICKER EDITOR • 512x512",
                         style = MaterialTheme.typography.labelLarge,
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -267,10 +345,9 @@ private fun StudioPreviewCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Checkerboard-style subtle studio stage
             Box(
                 modifier = Modifier
-                    .size(210.dp)
+                    .size(220.dp)
                     .clip(RoundedCornerShape(28.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
                 contentAlignment = Alignment.Center
@@ -283,7 +360,12 @@ private fun StudioPreviewCard(
                     bgColorHex = bgColorHex,
                     borderColorHex = borderColorHex,
                     emojiFontSizeSp = 60f,
-                    modifier = Modifier.size(190.dp)
+                    customImageUri = selectedImageUri,
+                    imageScale = imageScale,
+                    imageRotation = imageRotation,
+                    borderThicknessDp = borderThickness,
+                    colorFilterMode = colorFilterMode,
+                    modifier = Modifier.size(198.dp)
                 )
             }
 
@@ -333,6 +415,210 @@ private fun StudioPreviewCard(
                         maxLines = 1,
                         softWrap = false,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Interactive Sticker Editor Panel for adjusting photo zoom/crop scale, rotation angle,
+ * white die-cut border thickness, and artistic color filters.
+ */
+@Composable
+private fun StickerEditorTransformCard(
+    imageScale: Float,
+    imageRotation: Float,
+    borderThickness: Float,
+    colorFilterMode: String,
+    onImageScaleChange: (Float) -> Unit,
+    onImageRotationChange: (Float) -> Unit,
+    onBorderThicknessChange: (Float) -> Unit,
+    onColorFilterModeChange: (String) -> Unit,
+    onReset: () -> Unit
+) {
+    val filterOptions = listOf(
+        "NORMAL" to "Asali (Normal)",
+        "WARM_GOLD" to "Zinari (Warm Gold)",
+        "VIVID" to "Mai Haske (Vivid)",
+        "EMERALD_TINT" to "Arewa Emerald",
+        "MONO" to "Baki & Fari (B&W)"
+    )
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("sticker_editor_transform_card"),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.AutoFixHigh,
+                        contentDescription = "Sticker Editor",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "🛠️ Kayayyakin Gyaran Lamba (Sticker Editor)",
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onReset,
+                    shape = RoundedCornerShape(50),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                    modifier = Modifier
+                        .height(32.dp)
+                        .testTag("editor_reset_transform_button")
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Sake Saita", modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Sake Saita",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
+
+            // Zoom / Scale Slider
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.ZoomIn, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Girman Hoto (Zoom):",
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+                Text(
+                    text = "${(imageScale * 100).roundToInt()}%",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+            Slider(
+                value = imageScale,
+                onValueChange = onImageScaleChange,
+                valueRange = 0.5f..2.5f,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("editor_zoom_slider")
+            )
+
+            // Rotation Slider
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.AutoMirrored.Filled.RotateRight, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Juyawa (Rotation):",
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+                Text(
+                    text = "${imageRotation.roundToInt()}°",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+            Slider(
+                value = imageRotation,
+                onValueChange = onImageRotationChange,
+                valueRange = -180f..180f,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("editor_rotation_slider")
+            )
+
+            // Die-Cut Sticker Outline Thickness Slider
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Kaurin Gefen Lamba (Sticker Outline):",
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    softWrap = false
+                )
+                Text(
+                    text = "${borderThickness.roundToInt()} dp",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+            Slider(
+                value = borderThickness,
+                onValueChange = onBorderThicknessChange,
+                valueRange = 2f..16f,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("editor_border_slider")
+            )
+
+            // Color Filter Chips
+            Text(
+                text = "✨ Tace Launin Hoto (Sticker Filter):",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                softWrap = false
+            )
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(filterOptions) { (modeKey, modeLabel) ->
+                    FilterChip(
+                        selected = colorFilterMode == modeKey,
+                        onClick = { onColorFilterModeChange(modeKey) },
+                        label = {
+                            Text(
+                                text = modeLabel,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        shape = RoundedCornerShape(50),
+                        modifier = Modifier.testTag("editor_filter_$modeKey")
                     )
                 }
             }
@@ -409,7 +695,6 @@ private fun StudioControlsPanel(
                     .testTag("studio_bottom_text_input")
             )
 
-            // Quick Hausa Phrase Chips
             Text(
                 text = "⚡ Zantukan Hausa Na Gaggawa:",
                 style = MaterialTheme.typography.labelLarge,
@@ -447,7 +732,6 @@ private fun StudioControlsPanel(
                 }
             }
 
-            // Emoji Selector
             Text(
                 text = "😊 Zabi Alama (Emoji):",
                 style = MaterialTheme.typography.titleMedium,
@@ -486,7 +770,6 @@ private fun StudioControlsPanel(
                 }
             }
 
-            // Shape Style Selector
             Text(
                 text = "💠 Salon Taswirar Lamba (Badge Shape):",
                 style = MaterialTheme.typography.titleMedium,
@@ -516,7 +799,6 @@ private fun StudioControlsPanel(
                 }
             }
 
-            // Color Palette Selector
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.Palette,
