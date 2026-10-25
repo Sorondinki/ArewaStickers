@@ -26,13 +26,96 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Generate Android Keystore & Fix KSP Bug
+      - name: Generate Android Keystore, google-services.json & Fix KSP Bug
         run: |
           rm -f debug.keystore app/debug.keystore
           keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           cp debug.keystore app/debug.keystore || true
           sed -i 's/2\.3\.5/2.3.7/g' gradle/libs.versions.toml build.gradle.kts app/build.gradle.kts 2>/dev/null || true
           [ -f .env.example ] && [ ! -f .env ] && cp .env.example .env || true
+
+          PKG=$(grep -E 'applicationId\s*=' app/build.gradle* | head -n 1 | sed -E 's/.*["'\'']([^"'\'']+)["'\''].*/\1/')
+          PKG=${PKG:-com.aistudio.arewastickers.mzkpqx}
+
+          cat <<EOF > app/google-services.json
+          {
+            "project_info": {
+              "project_number": "334707078817",
+              "project_id": "gen-lang-client-0451743519",
+              "storage_bucket": "gen-lang-client-0451743519.firebasestorage.app"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:334707078817:android:5c910a0243b528f33da2e0",
+                  "android_client_info": {
+                    "package_name": "com.aistudio.arewastickers.mzkpqx"
+                  }
+                },
+                "oauth_client": [
+                  {
+                    "client_id": "334707078817-blg95ei66kf2qhccjgmskqokpdvglqko.apps.googleusercontent.com",
+                    "client_type": 1,
+                    "android_info": {
+                      "package_name": "com.aistudio.arewastickers.mzkpqx",
+                      "certificate_hash": "551b93a76b61d99f5fab6d130737c8807a1dd7a2"
+                    }
+                  },
+                  {
+                    "client_id": "334707078817-k24pdutht4564bhi0hch3pr5a92u5rfu.apps.googleusercontent.com",
+                    "client_type": 3
+                  }
+                ],
+                "api_key": [
+                  {
+                    "current_key": "AIzaSyBmSq6Do6fIlcVRLFiSKngQVot8YSaIJuY"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": [
+                      {
+                        "client_id": "334707078817-k24pdutht4564bhi0hch3pr5a92u5rfu.apps.googleusercontent.com",
+                        "client_type": 3
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:334707078817:android:5c910a0243b528f33da2e0",
+                  "android_client_info": {
+                    "package_name": "$PKG"
+                  }
+                },
+                "oauth_client": [
+                  {
+                    "client_id": "334707078817-k24pdutht4564bhi0hch3pr5a92u5rfu.apps.googleusercontent.com",
+                    "client_type": 3
+                  }
+                ],
+                "api_key": [
+                  {
+                    "current_key": "AIzaSyBmSq6Do6fIlcVRLFiSKngQVot8YSaIJuY"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": [
+                      {
+                        "client_id": "334707078817-k24pdutht4564bhi0hch3pr5a92u5rfu.apps.googleusercontent.com",
+                        "client_type": 3
+                      }
+                    ]
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOF
+
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Build Debug APK
