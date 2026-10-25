@@ -1,0 +1,6 @@
+{
+  "name": "ArewaStickers",
+  "description": "Manhajar ƙirƙira da raba lambobin WhatsApp (Stickers) na musamman mai sauri da dacewa da kowace waya.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

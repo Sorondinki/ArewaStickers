@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">ArewaStickers</string>
+    <string name="app_tagline">Fakitin Lambobin WhatsApp Na Musamman</string>
+    <string name="sign_in_google">Shiga da Google (Sign in with Google)</string>
+    <string name="sign_out">Fita Daga Asusu</string>
+    <string name="tab_explore">Gano Fakitoci</string>
+    <string name="tab_studio">Ƙirƙiri Lamba</string>
+    <string name="tab_saved">Nawa Na Musamman</string>
+    <string name="search_placeholder">Nemi lamba ko fakiti (misali: Sannu, Biki)...</string>
+    <string name="btn_add_to_whatsapp">Saka a WhatsApp</string>
+    <string name="btn_share_sticker">Aika Lamba Yanzu</string>
+    <string name="btn_save_sticker">Adana Lamba a Cloud</string>
+    <string name="btn_create_pack">Ƙirƙiri Sabon Fakiti</string>
+    <string name="empty_saved_packs">Ba ka adana wani fakiti ko lamba ba tukuna. Fara ƙirƙira a ɗakin Studio!</string>
+</resources>

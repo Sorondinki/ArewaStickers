@@ -1,0 +1,107 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // 3. Entity Validation Helpers
+    function isValidCustomStickerPack(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.title is string && data.title.size() >= 2 && data.title.size() <= 60 &&
+             data.author is string && data.author.size() >= 2 && data.author.size() <= 50 &&
+             data.category is string && data.category.size() >= 2 && data.category.size() <= 40 &&
+             data.trayEmoji is string && data.trayEmoji.size() >= 1 && data.trayEmoji.size() <= 16 &&
+             data.accentColorHex is string && data.accentColorHex.size() >= 4 && data.accentColorHex.size() <= 12 &&
+             data.isFavorite is bool &&
+             data.stickersCount is int && data.stickersCount >= 0 && data.stickersCount <= 30 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCustomStickerItem(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.packId is string && data.packId.size() >= 1 && data.packId.size() <= 128 &&
+             data.topText is string && data.topText.size() >= 1 && data.topText.size() <= 60 &&
+             data.bottomText is string && data.bottomText.size() >= 0 && data.bottomText.size() <= 60 &&
+             data.centerEmoji is string && data.centerEmoji.size() >= 1 && data.centerEmoji.size() <= 16 &&
+             data.shapeStyle is string && data.shapeStyle in ['CIRCLE', 'STARBURST', 'SHIELD', 'HEXAGON', 'BANNER'] &&
+             data.bgColorHex is string && data.bgColorHex.size() >= 4 && data.bgColorHex.size() <= 12 &&
+             data.borderColorHex is string && data.borderColorHex.size() >= 4 && data.borderColorHex.size() <= 12 &&
+             data.isFavorite is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    // 4. Collection Rules: /users/{userId}/sticker_packs/{packId}
+    match /users/{userId}/sticker_packs/{packId} {
+      allow get: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(packId);
+      allow list: if isSignedIn() && request.auth.uid == userId && existing().userId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+                       request.auth.uid == userId &&
+                       isValidId(userId) &&
+                       isValidId(packId) &&
+                       incoming().keys().hasAll(['userId', 'title', 'author', 'category', 'trayEmoji', 'accentColorHex', 'isFavorite', 'stickersCount', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'title', 'author', 'category', 'trayEmoji', 'accentColorHex', 'isFavorite', 'stickersCount', 'createdAt', 'updatedAt']) &&
+                       isValidCustomStickerPack(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidCustomStickerPack(incoming()) &&
+                       request.auth.uid == userId &&
+                       isValidId(userId) &&
+                       isValidId(packId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['title', 'author', 'category', 'trayEmoji', 'accentColorHex', 'isFavorite', 'stickersCount', 'updatedAt']);
+
+      allow delete: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(packId);
+    }
+
+    // 5. Collection Rules: /users/{userId}/custom_stickers/{stickerId}
+    match /users/{userId}/custom_stickers/{stickerId} {
+      allow get: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(stickerId);
+      allow list: if isSignedIn() && request.auth.uid == userId && existing().userId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+                       request.auth.uid == userId &&
+                       isValidId(userId) &&
+                       isValidId(stickerId) &&
+                       incoming().keys().hasAll(['userId', 'packId', 'topText', 'bottomText', 'centerEmoji', 'shapeStyle', 'bgColorHex', 'borderColorHex', 'isFavorite', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'packId', 'topText', 'bottomText', 'centerEmoji', 'shapeStyle', 'bgColorHex', 'borderColorHex', 'isFavorite', 'createdAt', 'updatedAt']) &&
+                       isValidCustomStickerItem(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidCustomStickerItem(incoming()) &&
+                       request.auth.uid == userId &&
+                       isValidId(userId) &&
+                       isValidId(stickerId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['packId', 'topText', 'bottomText', 'centerEmoji', 'shapeStyle', 'bgColorHex', 'borderColorHex', 'isFavorite', 'updatedAt']);
+
+      allow delete: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(stickerId);
+    }
+  }
+}

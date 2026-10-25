@@ -1,0 +1,145 @@
+{
+  "entities": {
+    "CustomStickerPack": {
+      "title": "CustomStickerPack",
+      "description": "A user-created or saved WhatsApp sticker pack containing pack metadata and stickers.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the authenticated user who owns this sticker pack."
+        },
+        "title": {
+          "type": "string",
+          "description": "The display title of the sticker pack (3-60 characters)."
+        },
+        "author": {
+          "type": "string",
+          "description": "The creator/publisher name of the sticker pack (2-50 characters)."
+        },
+        "category": {
+          "type": "string",
+          "description": "Category tag such as Gaisuwa, Barkwanci, Biki, Addu'a, Kasuwanci, or Na Musamman."
+        },
+        "trayEmoji": {
+          "type": "string",
+          "description": "Primary emoji icon for the sticker pack tray."
+        },
+        "accentColorHex": {
+          "type": "string",
+          "description": "Hex color code for the pack theme."
+        },
+        "isFavorite": {
+          "type": "boolean",
+          "description": "Whether the user marked this pack as a favorite."
+        },
+        "stickersCount": {
+          "type": "integer",
+          "description": "Number of stickers inside this pack (1 to 30)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the pack was created via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the pack was last updated via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "userId",
+        "title",
+        "author",
+        "category",
+        "trayEmoji",
+        "accentColorHex",
+        "isFavorite",
+        "stickersCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CustomStickerItem": {
+      "title": "CustomStickerItem",
+      "description": "An individual custom sticker designed by a user in the Sticker Studio.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the authenticated user who owns this custom sticker."
+        },
+        "packId": {
+          "type": "string",
+          "description": "The ID of the pack this sticker belongs to."
+        },
+        "topText": {
+          "type": "string",
+          "description": "Main Hausa or custom phrase on the sticker (1-60 characters)."
+        },
+        "bottomText": {
+          "type": "string",
+          "description": "Secondary subtitle or translation on the sticker (0-60 characters)."
+        },
+        "centerEmoji": {
+          "type": "string",
+          "description": "Central expressive emoji or symbol."
+        },
+        "shapeStyle": {
+          "type": "string",
+          "description": "Badge shape style: CIRCLE, STARBURST, SHIELD, HEXAGON, or BANNER."
+        },
+        "bgColorHex": {
+          "type": "string",
+          "description": "Background hex color."
+        },
+        "borderColorHex": {
+          "type": "string",
+          "description": "Border/accent hex color."
+        },
+        "isFavorite": {
+          "type": "boolean",
+          "description": "Whether the user marked this individual sticker as favorite."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the sticker was created via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the sticker was last updated via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "userId",
+        "packId",
+        "topText",
+        "bottomText",
+        "centerEmoji",
+        "shapeStyle",
+        "bgColorHex",
+        "borderColorHex",
+        "isFavorite",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/sticker_packs/{packId}": {
+      "schema": {
+        "$ref": "#/entities/CustomStickerPack"
+      },
+      "description": "Stores custom and saved WhatsApp sticker packs owned by the user."
+    },
+    "/users/{userId}/custom_stickers/{stickerId}": {
+      "schema": {
+        "$ref": "#/entities/CustomStickerItem"
+      },
+      "description": "Stores individual custom stickers created in the Sticker Studio owned by the user."
+    }
+  }
+}
