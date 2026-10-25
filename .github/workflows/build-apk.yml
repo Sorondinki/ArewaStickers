@@ -26,11 +26,22 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Generate Android Keystore, google-services.json & Fix KSP Bug
+      - name: Prepare Keystore, google-services.json & Fix SDK Compatibility
         run: |
-          rm -f debug.keystore app/debug.keystore
+          rm -f debug.keystore app/debug.keystore ~/.android/debug.keystore
+          mkdir -p ~/.android
           keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           cp debug.keystore app/debug.keystore || true
+          cp debug.keystore ~/.android/debug.keystore || true
+
+          # Rage minSdk zuwa 24 (Android 7.0+) domin APK ya shiga kowace waya ba tare da "package appears to be invalid" ba
+          sed -i -E 's/minSdk\s*=\s*[0-9]+/minSdk = 24/g' app/build.gradle.kts app/build.gradle 2>/dev/null || true
+          sed -i -E 's/minSdkVersion\s*\(?[0-9]+\)?/minSdkVersion(24)/g' app/build.gradle.kts app/build.gradle 2>/dev/null || true
+          sed -i -E 's/minSdk\s*=\s*"[0-9]+"/minSdk = "24"/g' gradle/libs.versions.toml 2>/dev/null || true
+
+          # Cire testOnly idan yana cikin AndroidManifest.xml
+          sed -i 's/android:testOnly="true"//g' app/src/main/AndroidManifest.xml 2>/dev/null || true
+
           sed -i 's/2\.3\.5/2.3.7/g' gradle/libs.versions.toml build.gradle.kts app/build.gradle.kts 2>/dev/null || true
           [ -f .env.example ] && [ ! -f .env ] && cp .env.example .env || true
 
@@ -118,8 +129,24 @@ jobs:
 
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      - name: Build Debug APK
-        run: xvfb-run -a gradle :app:assembleDebug --no-daemon --console=plain
+      - name: Build & Sign Debug APK
+        run: |
+          xvfb-run -a gradle :app:assembleDebug --no-daemon --console=plain
+
+          # Tabbatar da sa hannun V1/V2/V3 a kan APK domin kowace wayar Android ta karbe shi
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+          for apk in app/build/outputs/apk/debug/*.apk; do
+            "$BUILD_TOOLS_DIR/zipalign" -p -f -v 4 "$apk" "${apk%.apk}-aligned.apk"
+            mv "${apk%.apk}-aligned.apk" "$apk"
+            "$BUILD_TOOLS_DIR/apksigner" sign \
+              --ks debug.keystore \
+              --ks-key-alias androiddebugkey \
+              --ks-pass pass:android \
+              --key-pass pass:android \
+              --v1-signing-enabled true \
+              --v2-signing-enabled true \
+              "$apk"
+          done
 
       - name: Publish APK to GitHub Releases
         uses: softprops/action-gh-release@v2
